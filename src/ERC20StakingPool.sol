@@ -5,7 +5,16 @@ import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 
 import {Ownable} from "openzeppelin-contracts/access/Ownable.sol";
 
-contract ERC20StakingPool {
+contract ERC20StakingPool is Ownable {
+    /// -----------------------------------------------------------------------
+    /// Errors
+    /// -----------------------------------------------------------------------
+    error Error_ZeroRewardAmount();
+
+    /// -----------------------------------------------------------------------
+    /// Events
+    /// -----------------------------------------------------------------------
+
     /// -----------------------------------------------------------------------
     /// Constant variables
     /// -----------------------------------------------------------------------
@@ -43,6 +52,15 @@ contract ERC20StakingPool {
     /// @notice Total supply of staked tokens in the staking pool
     uint256 public totalStakedTokens;
 
+    /// @notice Amount of tokens staked by a staker
+    mapping(address => uint256) public balanceOfStaker;
+
+    /// @notice Value of rewards per token when staker last staked/withdrew rewards
+    mapping(address => uint256) public rewardPerTokenPaid;
+
+    /// @notice Rewards earned when staker last staked/withdrew rewards
+    mapping(address => uint256) public rewards;
+
     constructor(
         address _rewardToken,
         address _stakeToken,
@@ -52,4 +70,49 @@ contract ERC20StakingPool {
         stakeToken = IERC20(_stakeToken);
         duration = _duration;
     }
+
+    /// -----------------------------------------------------------------------
+    /// User actions
+    /// -----------------------------------------------------------------------
+
+    function stake() external {}
+
+    function withdraw() external {}
+
+    function getRewards() external {}
+
+    function exitPoolWithStakeAndRewards() external {}
+
+    /// -----------------------------------------------------------------------
+    /// Owner actions
+    /// -----------------------------------------------------------------------
+
+    /// @notice Starts a new reward period. Details:
+    /// The reward tokens need to have been already transferred to this contract.
+    /// Leftover rewards from previous reward period rolled over to new period.
+    /// @param rewardAmount Amount of reward tokens in new reward period.
+    function newRewardPeriod(uint256 rewardAmount) external onlyOwner {
+        if (rewardAmount == 0) revert Error_ZeroRewardAmount();
+
+        uint256 _rewardRate = rewardRate;
+        uint256 _endCurrentRewardPeriod = endCurrentRewardPeriod;
+    }
+
+    /// -----------------------------------------------------------------------
+    /// Getter functions
+    /// -----------------------------------------------------------------------
+
+    function lastRewardTime() public view returns (uint256) {}
+
+    function rewardPerToken() external view returns (uint256) {}
+
+    function earned() external view returns (uint256) {}
+
+    /// -----------------------------------------------------------------------
+    /// Internal functions
+    /// -----------------------------------------------------------------------
+
+    function _rewardPerToken() internal view returns (uint256) {}
+
+    function _earned() internal view returns (uint256) {}
 }
