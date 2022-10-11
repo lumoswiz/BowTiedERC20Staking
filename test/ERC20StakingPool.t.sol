@@ -68,6 +68,13 @@ contract ERC20StakingPoolTest is Test {
         vm.label(address(pool), "ERC20 Staking Pool");
 
         vm.stopPrank();
+
+        // Approvals
+        vm.prank(userA);
+        stakeToken.approve(address(pool), type(uint256).max);
+
+        vm.prank(userB);
+        stakeToken.approve(address(pool), type(uint256).max);
     }
 
     /// -----------------------------------------------------------------------
@@ -101,5 +108,55 @@ contract ERC20StakingPoolTest is Test {
             ERC20StakingPool.Error_InsufficientRewardTokensInPool.selector
         );
         pool.newRewardPeriod(REWARD_AMOUNT);
+    }
+
+    /// -----------------------------------------------------------------------
+    /// Testing: `stake(uint256 amount)`
+    /// -----------------------------------------------------------------------
+    function testStake() public {
+        uint256 REWARD_AMOUNT = 20e18;
+        fundAndStartNewRewardPeriod(REWARD_AMOUNT);
+
+        // User A stakes entire balance
+        vm.startPrank(userA);
+        uint256 amountStakedUserA = stakeToken.balanceOf(userA);
+        pool.stake(amountStakedUserA);
+        vm.stopPrank();
+
+        assertEq(pool.rewardPerTokenStored(), pool.rewardPerToken());
+
+        // Skip forward 4 days
+        vm.warp(block.timestamp + 4 days);
+
+        // User B stakes entire balance
+        vm.startPrank(userB);
+        uint256 amountStakedUserB = stakeToken.balanceOf(userB);
+        pool.stake(amountStakedUserB);
+        vm.stopPrank();
+
+        assertEq(pool.balanceOfStaker(userA), amountStakedUserA);
+        assertEq(pool.balanceOfStaker(userB), amountStakedUserB);
+
+        assertEq(
+            pool.totalStakedTokens(),
+            amountStakedUserA + amountStakedUserB
+        );
+
+        assertEq(pool.rewardPerTokenStored(), pool.rewardPerToken());
+
+        assertEq(pool.rewards(userA), pool.earned(userA));
+        emit log_uint(pool.earned(userA));
+    }
+
+    /// -----------------------------------------------------------------------
+    /// Helper functions
+    /// -----------------------------------------------------------------------
+    function fundAndStartNewRewardPeriod(uint256 REWARD_AMOUNT) public {
+        vm.startPrank(poolOwner);
+
+        rewardToken.transfer(address(pool), REWARD_AMOUNT);
+        pool.newRewardPeriod(REWARD_AMOUNT);
+
+        vm.stopPrank();
     }
 }

@@ -15,7 +15,7 @@ contract ERC20StakingPool is Ownable {
     /// -----------------------------------------------------------------------
     /// Constant variables
     /// -----------------------------------------------------------------------
-    uint256 internal constant precision = 1e30; // try to change this to 1e18.
+    uint256 public constant precision = 1e30; // try to change this to 1e18.
 
     /// -----------------------------------------------------------------------
     /// Immutable variables
