@@ -9,7 +9,7 @@ contract ERC20StakingPool is Ownable {
     /// -----------------------------------------------------------------------
     /// Errors
     /// -----------------------------------------------------------------------
-    error Error_ZeroRewardAmount();
+    error Error_ZeroAmount();
     error Error_InsufficientRewardTokensInPool();
 
     /// -----------------------------------------------------------------------
@@ -72,7 +72,42 @@ contract ERC20StakingPool is Ownable {
     /// User actions
     /// -----------------------------------------------------------------------
 
-    function stake() external {}
+    function stake(uint256 amount) external {
+        if (amount == 0) revert Error_ZeroAmount();
+
+        /*=== Load state variables ===*/
+        uint256 accountBalance = balanceOfStaker[msg.sender];
+
+        uint256 lastRewardTime_ = lastRewardTime();
+        uint256 totalStakedTokens_ = totalStakedTokens;
+        uint256 rewardPerToken_ = _rewardPerToken(
+            rewardRate,
+            totalStakedTokens_,
+            lastRewardTime_
+        );
+
+        /*=== Update state variables ===*/
+
+        // rewards
+        rewardPerTokenStored = rewardPerToken_;
+        updateTime = lastRewardTime_;
+
+        rewards[msg.sender] = _earned(
+            msg.sender,
+            accountBalance,
+            rewardPerToken_,
+            rewards[msg.sender]
+        );
+
+        rewardPerTokenPaid[msg.sender] = rewardPerToken_;
+
+        // stake
+        totalStakedTokens = totalStakedTokens_ + amount;
+        balanceOfStaker[msg.sender] = accountBalance + amount;
+
+        /*=== Effects ===*/
+        stakeToken.transferFrom(msg.sender, address(this), amount);
+    }
 
     function withdraw() external {}
 
@@ -90,35 +125,34 @@ contract ERC20StakingPool is Ownable {
     /// @param rewardAmount Amount of reward tokens in new reward period.
     function newRewardPeriod(uint256 rewardAmount) external onlyOwner {
         /*=== Checks ===*/
-        if (rewardAmount == 0) revert Error_ZeroRewardAmount();
+        if (rewardAmount == 0) revert Error_ZeroAmount();
 
         /*=== Load state variables ===*/
-        uint256 _endCurrentRewardPeriod = endCurrentRewardPeriod;
-        uint256 _lastUpdateTime = block.timestamp < _endCurrentRewardPeriod
+        uint256 endCurrentRewardPeriod_ = endCurrentRewardPeriod;
+        uint256 lastUpdateTime_ = block.timestamp < endCurrentRewardPeriod_
             ? block.timestamp
-            : _endCurrentRewardPeriod;
-        uint256 _rewardRate = rewardRate;
-        uint256 _duration = duration;
-        uint256 _totalStakedTokens = totalStakedTokens;
+            : endCurrentRewardPeriod_;
+        uint256 rewardRate_ = rewardRate;
+        uint256 totalStakedTokens_ = totalStakedTokens;
 
         /*=== Update state variables ===*/
 
         rewardPerTokenStored = _rewardPerToken(
-            _rewardRate,
-            _totalStakedTokens,
-            _lastUpdateTime
+            rewardRate_,
+            totalStakedTokens_,
+            lastUpdateTime_
         );
 
-        updateTime = _lastUpdateTime;
+        updateTime = lastUpdateTime_;
 
         uint256 tempRewardRate;
 
         if (block.timestamp >= endCurrentRewardPeriod) {
-            tempRewardRate = rewardAmount / _duration;
+            tempRewardRate = rewardAmount / duration;
         } else {
             uint256 remainingTime = (endCurrentRewardPeriod - block.timestamp);
-            uint256 remainingRewards = remainingTime * _rewardRate;
-            tempRewardRate = (rewardAmount * remainingRewards) / _duration;
+            uint256 remainingRewards = remainingTime * rewardRate_;
+            tempRewardRate = (rewardAmount * remainingRewards) / duration;
         }
 
         rewardRate = tempRewardRate;
@@ -127,7 +161,7 @@ contract ERC20StakingPool is Ownable {
             revert Error_InsufficientRewardTokensInPool();
 
         updateTime = block.timestamp;
-        endCurrentRewardPeriod = _duration + block.timestamp;
+        endCurrentRewardPeriod = duration + block.timestamp;
     }
 
     /// -----------------------------------------------------------------------
@@ -148,7 +182,17 @@ contract ERC20StakingPool is Ownable {
                 _totalStakedTokens);
     }
 
-    function _earned() internal view returns (uint256) {}
+    function _earned(
+        address account,
+        uint256 accountBalance,
+        uint256 rewardPerToken_,
+        uint256 accountRewards
+    ) internal view returns (uint256) {
+        return
+            accountRewards +
+            (accountBalance * (rewardPerToken_ - rewardPerTokenPaid[account])) /
+            precision;
+    }
 
     /// -----------------------------------------------------------------------
     /// Getter functions
@@ -165,5 +209,17 @@ contract ERC20StakingPool is Ownable {
         return _rewardPerToken(rewardRate, totalStakedTokens, lastRewardTime());
     }
 
-    function earned() external view returns (uint256) {}
+    function earned(address account) external view returns (uint256) {
+        return
+            _earned(
+                account,
+                balanceOfStaker[account],
+                _rewardPerToken(
+                    rewardRate,
+                    totalStakedTokens,
+                    lastRewardTime()
+                ),
+                rewards[account]
+            );
+    }
 }
