@@ -10,10 +10,7 @@ contract ERC20StakingPool is Ownable {
     /// Errors
     /// -----------------------------------------------------------------------
     error Error_ZeroRewardAmount();
-
-    /// -----------------------------------------------------------------------
-    /// Events
-    /// -----------------------------------------------------------------------
+    error Error_InsufficientRewardTokensInPool();
 
     /// -----------------------------------------------------------------------
     /// Constant variables
@@ -92,27 +89,81 @@ contract ERC20StakingPool is Ownable {
     /// Leftover rewards from previous reward period rolled over to new period.
     /// @param rewardAmount Amount of reward tokens in new reward period.
     function newRewardPeriod(uint256 rewardAmount) external onlyOwner {
+        /*=== Checks ===*/
         if (rewardAmount == 0) revert Error_ZeroRewardAmount();
 
-        uint256 _rewardRate = rewardRate;
+        /*=== Load state variables ===*/
         uint256 _endCurrentRewardPeriod = endCurrentRewardPeriod;
+        uint256 _lastUpdateTime = block.timestamp < _endCurrentRewardPeriod
+            ? block.timestamp
+            : _endCurrentRewardPeriod;
+        uint256 _rewardRate = rewardRate;
+        uint256 _duration = duration;
+        uint256 _totalStakedTokens = totalStakedTokens;
+
+        /*=== Update state variables ===*/
+
+        rewardPerTokenStored = _rewardPerToken(
+            _rewardRate,
+            _totalStakedTokens,
+            _lastUpdateTime
+        );
+
+        updateTime = _lastUpdateTime;
+
+        uint256 tempRewardRate;
+
+        if (block.timestamp >= endCurrentRewardPeriod) {
+            tempRewardRate = rewardAmount / _duration;
+        } else {
+            uint256 remainingTime = (endCurrentRewardPeriod - block.timestamp);
+            uint256 remainingRewards = remainingTime * _rewardRate;
+            tempRewardRate = (rewardAmount * remainingRewards) / _duration;
+        }
+
+        rewardRate = tempRewardRate;
+
+        if (rewardToken.balanceOf(address(this)) < rewardRate * duration)
+            revert Error_InsufficientRewardTokensInPool();
+
+        updateTime = block.timestamp;
+        endCurrentRewardPeriod = _duration + block.timestamp;
     }
-
-    /// -----------------------------------------------------------------------
-    /// Getter functions
-    /// -----------------------------------------------------------------------
-
-    function lastRewardTime() public view returns (uint256) {}
-
-    function rewardPerToken() external view returns (uint256) {}
-
-    function earned() external view returns (uint256) {}
 
     /// -----------------------------------------------------------------------
     /// Internal functions
     /// -----------------------------------------------------------------------
 
-    function _rewardPerToken() internal view returns (uint256) {}
+    function _rewardPerToken(
+        uint256 _rewardRate,
+        uint256 _totalStakedTokens,
+        uint256 _lastRewardTime
+    ) internal view returns (uint256) {
+        if (_totalStakedTokens == 0) {
+            return rewardPerTokenStored;
+        }
+        return
+            rewardPerTokenStored +
+            ((precision * _rewardRate * (_lastRewardTime - updateTime)) /
+                _totalStakedTokens);
+    }
 
     function _earned() internal view returns (uint256) {}
+
+    /// -----------------------------------------------------------------------
+    /// Getter functions
+    /// -----------------------------------------------------------------------
+
+    function lastRewardTime() public view returns (uint256) {
+        return
+            block.timestamp < endCurrentRewardPeriod
+                ? block.timestamp
+                : endCurrentRewardPeriod;
+    }
+
+    function rewardPerToken() external view returns (uint256) {
+        return _rewardPerToken(rewardRate, totalStakedTokens, lastRewardTime());
+    }
+
+    function earned() external view returns (uint256) {}
 }
