@@ -28,3 +28,10 @@ Problem specifications are as follows:
 - Users can claim rewards at any time.
 
 ## Testing Coverage
+
+## Acknowledgements
+
+When I found myself feeling stuck, I referred to the following contracts:
+
+- `ERC20StakingPool.sol` from ZeframLou's Playpen ([here](https://github.com/ZeframLou/playpen/blob/main/src/ERC20StakingPool.sol)).
+- Staking Rewards from Solidity By Example ([here](https://solidity-by-example.org/defi/staking-rewards/)).

@@ -11,6 +11,7 @@ contract ERC20StakingPool is Ownable {
     /// -----------------------------------------------------------------------
     error Error_ZeroAmount();
     error Error_InsufficientRewardTokensInPool();
+    error Error_AmountExceedsStakerBalance();
 
     /// -----------------------------------------------------------------------
     /// Constant variables
@@ -75,9 +76,8 @@ contract ERC20StakingPool is Ownable {
     function stake(uint256 amount) external {
         if (amount == 0) revert Error_ZeroAmount();
 
-        /*=== Load state variables ===*/
+        /*=== Load storage variables ===*/
         uint256 accountBalance = balanceOfStaker[msg.sender];
-
         uint256 lastRewardTime_ = lastRewardTime();
         uint256 totalStakedTokens_ = totalStakedTokens;
         uint256 rewardPerToken_ = _rewardPerToken(
@@ -86,7 +86,7 @@ contract ERC20StakingPool is Ownable {
             lastRewardTime_
         );
 
-        /*=== Update state variables ===*/
+        /*=== Update storage variables ===*/
 
         // rewards
         rewardPerTokenStored = rewardPerToken_;
@@ -109,9 +109,63 @@ contract ERC20StakingPool is Ownable {
         stakeToken.transferFrom(msg.sender, address(this), amount);
     }
 
-    function withdraw() external {}
+    function withdraw(uint256 amount) external {
+        if (amount == 0) revert Error_ZeroAmount();
 
-    function getRewards() external {}
+        /*=== Load storage variables ===*/
+        uint256 accountBalance = balanceOfStaker[msg.sender];
+        if (amount > accountBalance) revert Error_AmountExceedsStakerBalance();
+
+        uint256 lastRewardTime_ = lastRewardTime();
+        uint256 totalStakedTokens_ = totalStakedTokens;
+        uint256 rewardPerToken_ = _rewardPerToken(
+            rewardRate,
+            totalStakedTokens_,
+            lastRewardTime_
+        );
+
+        /*=== Update storage variables ===*/
+
+        // rewards
+        rewardPerTokenStored = rewardPerToken_;
+        updateTime = lastRewardTime_;
+
+        rewards[msg.sender] = _earned(
+            msg.sender,
+            accountBalance,
+            rewardPerToken_,
+            rewards[msg.sender]
+        );
+
+        rewardPerTokenPaid[msg.sender] = rewardPerToken_;
+
+        // withdraw
+        balanceOfStaker[msg.sender] = accountBalance - amount;
+        totalStakedTokens = totalStakedTokens_ - amount; // could this line cause issues?
+
+        /*=== Effects ===*/
+        stakeToken.transfer(msg.sender, amount);
+    }
+
+    function getRewards() external {
+        /*=== Load storage variables ===*/
+        uint256 accountBalance = balanceOfStaker[msg.sender];
+        uint256 lastRewardTime_ = lastRewardTime();
+        uint256 totalStakedTokens_ = totalStakedTokens;
+        uint256 rewardPerToken_ = _rewardPerToken(
+            rewardRate,
+            totalStakedTokens_,
+            lastRewardTime_
+        );
+
+        /*=== Update storage variables ===*/
+        uint256 rewards = _earned(
+            msg.sender,
+            accountBalance,
+            rewardPerToken_,
+            rewards[msg.sender]
+        );
+    }
 
     function exitPoolWithStakeAndRewards() external {}
 
@@ -127,7 +181,7 @@ contract ERC20StakingPool is Ownable {
         /*=== Checks ===*/
         if (rewardAmount == 0) revert Error_ZeroAmount();
 
-        /*=== Load state variables ===*/
+        /*=== Load storage variables ===*/
         uint256 endCurrentRewardPeriod_ = endCurrentRewardPeriod;
         uint256 lastUpdateTime_ = block.timestamp < endCurrentRewardPeriod_
             ? block.timestamp
@@ -135,7 +189,7 @@ contract ERC20StakingPool is Ownable {
         uint256 rewardRate_ = rewardRate;
         uint256 totalStakedTokens_ = totalStakedTokens;
 
-        /*=== Update state variables ===*/
+        /*=== Update storage variables ===*/
 
         rewardPerTokenStored = _rewardPerToken(
             rewardRate_,

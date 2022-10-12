@@ -117,6 +117,8 @@ contract ERC20StakingPoolTest is Test {
         uint256 REWARD_AMOUNT = 20e18;
         fundAndStartNewRewardPeriod(REWARD_AMOUNT);
 
+        uint256 poolBalanceBefore = stakeToken.balanceOf(address(pool));
+
         // User A stakes entire balance
         vm.startPrank(userA);
         uint256 amountStakedUserA = stakeToken.balanceOf(userA);
@@ -144,8 +146,78 @@ contract ERC20StakingPoolTest is Test {
 
         assertEq(pool.rewardPerTokenStored(), pool.rewardPerToken());
 
-        assertEq(pool.rewards(userA), pool.earned(userA));
-        emit log_uint(pool.earned(userA));
+        assertEq(userEarned(userA), pool.earned(userA));
+        assertEq(userEarned(userB), pool.earned(userB));
+
+        assertEq(
+            stdMath.delta(
+                stakeToken.balanceOf(address(pool)),
+                poolBalanceBefore
+            ),
+            amountStakedUserA + amountStakedUserB
+        );
+
+        assertEq(
+            stdMath.delta(stakeToken.balanceOf(userA), amountStakedUserA),
+            amountStakedUserA
+        );
+
+        assertEq(
+            stdMath.delta(stakeToken.balanceOf(userB), amountStakedUserB),
+            amountStakedUserB
+        );
+    }
+
+    function testStakeZeroAmount() public {
+        uint256 REWARD_AMOUNT = 20e18;
+        fundAndStartNewRewardPeriod(REWARD_AMOUNT);
+
+        vm.startPrank(userA);
+        vm.expectRevert(ERC20StakingPool.Error_ZeroAmount.selector);
+        pool.stake(0);
+        vm.stopPrank();
+    }
+
+    /// -----------------------------------------------------------------------
+    /// Testing: `withdraw(uint256 amount)`
+    /// -----------------------------------------------------------------------
+    function testWithdraw() public {
+        uint256 REWARD_AMOUNT = 20e18;
+        fundAndStartNewRewardPeriod(REWARD_AMOUNT);
+
+        // User A stakes entire balance
+        vm.startPrank(userA);
+        uint256 amountStakedUserA = stakeToken.balanceOf(userA);
+        pool.stake(amountStakedUserA);
+        vm.stopPrank();
+
+        // Skip forward 4 days
+        vm.warp(block.timestamp + 4 days);
+
+        vm.startPrank(userA);
+        pool.withdraw(amountStakedUserA);
+        vm.stopPrank();
+    }
+
+    function testWithdrawAmountExceedingBalance() public {
+        uint256 REWARD_AMOUNT = 20e18;
+        fundAndStartNewRewardPeriod(REWARD_AMOUNT);
+
+        // User A stakes entire balance
+        vm.startPrank(userA);
+        uint256 amountStakedUserA = stakeToken.balanceOf(userA);
+        pool.stake(amountStakedUserA);
+        vm.stopPrank();
+
+        // Skip forward 4 days
+        vm.warp(block.timestamp + 4 days);
+
+        vm.startPrank(userA);
+        vm.expectRevert(
+            ERC20StakingPool.Error_AmountExceedsStakerBalance.selector
+        );
+        pool.withdraw(amountStakedUserA + 10e18);
+        vm.stopPrank();
     }
 
     /// -----------------------------------------------------------------------
@@ -158,5 +230,13 @@ contract ERC20StakingPoolTest is Test {
         pool.newRewardPeriod(REWARD_AMOUNT);
 
         vm.stopPrank();
+    }
+
+    function userEarned(address user) public view returns (uint256) {
+        return
+            pool.rewards(user) +
+            (pool.balanceOfStaker(user) *
+                (pool.rewardPerToken() - pool.rewardPerTokenPaid(user))) /
+            pool.precision();
     }
 }
