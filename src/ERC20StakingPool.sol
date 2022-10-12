@@ -159,15 +159,69 @@ contract ERC20StakingPool is Ownable {
         );
 
         /*=== Update storage variables ===*/
-        uint256 rewards = _earned(
+
+        // rewards
+        uint256 rewardsToWithdraw = _earned(
             msg.sender,
             accountBalance,
             rewardPerToken_,
             rewards[msg.sender]
         );
+
+        rewardPerTokenStored = rewardPerToken_;
+        updateTime = lastRewardTime_;
+        rewardPerTokenPaid[msg.sender] = rewardPerToken_;
+
+        // withdrawing withdraws
+
+        if (rewardsToWithdraw > 0) {
+            rewards[msg.sender] = 0;
+
+            /*=== Effects ===*/
+            rewardToken.transfer(msg.sender, rewardsToWithdraw);
+        }
     }
 
-    function exitPoolWithStakeAndRewards() external {}
+    function exitPoolWithStakeAndRewards() external {
+        /*=== Load storage variables ===*/
+        uint256 accountBalance = balanceOfStaker[msg.sender];
+        uint256 lastRewardTime_ = lastRewardTime();
+        uint256 totalStakedTokens_ = totalStakedTokens;
+        uint256 rewardPerToken_ = _rewardPerToken(
+            rewardRate,
+            totalStakedTokens_,
+            lastRewardTime_
+        );
+
+        /*=== Update storage variables ===*/
+
+        // rewards to give
+        uint256 rewardsToWithdraw = _earned(
+            msg.sender,
+            accountBalance,
+            rewardPerToken_,
+            rewards[msg.sender]
+        );
+
+        if (rewardsToWithdraw > 0) {
+            rewards[msg.sender] = 0;
+        }
+
+        // rewards accrued
+        rewardPerTokenStored = rewardPerToken_;
+        updateTime = lastRewardTime_;
+        rewardPerTokenPaid[msg.sender] = rewardPerToken_;
+
+        // withdraw
+        balanceOfStaker[msg.sender] = 0;
+        totalStakedTokens = totalStakedTokens_ - accountBalance;
+
+        /*=== Effects ===*/
+        stakeToken.transfer(msg.sender, accountBalance);
+        if (rewardsToWithdraw > 0) {
+            rewardToken.transfer(msg.sender, rewardsToWithdraw);
+        }
+    }
 
     /// -----------------------------------------------------------------------
     /// Owner actions

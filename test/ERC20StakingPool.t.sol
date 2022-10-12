@@ -221,6 +221,39 @@ contract ERC20StakingPoolTest is Test {
     }
 
     /// -----------------------------------------------------------------------
+    /// Testing: `getRewards()`
+    /// -----------------------------------------------------------------------
+    function testGetRewards() public {
+        uint256 REWARD_AMOUNT = 20e18;
+        fundAndStartNewRewardPeriod(REWARD_AMOUNT);
+
+        assertEq(rewardToken.balanceOf(address(pool)), REWARD_AMOUNT);
+
+        // User A stakes entire balance
+        vm.startPrank(userA);
+        uint256 amountStakedUserA = stakeToken.balanceOf(userA);
+        pool.stake(amountStakedUserA);
+        vm.stopPrank();
+
+        // Skip forward 4 days
+        vm.warp(block.timestamp + 4 days);
+
+        uint256 rewardsToUserA = pool.earned(userA);
+
+        vm.startPrank(userA);
+        pool.getRewards();
+        vm.stopPrank();
+
+        assertEq(
+            stdMath.delta(REWARD_AMOUNT, rewardsToUserA),
+            rewardToken.balanceOf(address(pool))
+        );
+
+        assertEq(stakeToken.balanceOf(userA), 0);
+        assertEq(stakeToken.balanceOf(address(pool)), amountStakedUserA);
+    }
+
+    /// -----------------------------------------------------------------------
     /// Helper functions
     /// -----------------------------------------------------------------------
     function fundAndStartNewRewardPeriod(uint256 REWARD_AMOUNT) public {
