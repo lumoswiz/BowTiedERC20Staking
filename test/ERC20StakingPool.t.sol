@@ -91,12 +91,19 @@ contract ERC20StakingPoolTest is Test {
 
         vm.stopPrank();
 
+        // updateTime properly set to block.timestamp
         assertEq(pool.updateTime(), block.timestamp);
+
+        // endCurrentRewardPeriod properly set
         assertEq(
             pool.endCurrentRewardPeriod(),
             block.timestamp + pool.duration()
         );
+
+        // rewardPerTokenStored should be 0 (storage var initialised to zero on deployment & no tokens staked currently)
         assertEq(pool.rewardPerTokenStored(), 0);
+
+        // rewardRate properly set
         assertEq(pool.rewardRate(), REWARD_AMOUNT / pool.duration());
     }
 
@@ -104,6 +111,7 @@ contract ERC20StakingPoolTest is Test {
         uint256 REWARD_AMOUNT = 20e18;
 
         vm.prank(poolOwner);
+        // No rewardTokens sent to pool before calling `newRewardPeriod`, expect revert.
         vm.expectRevert(
             ERC20StakingPool.Error_InsufficientRewardTokensInPool.selector
         );
@@ -125,6 +133,7 @@ contract ERC20StakingPoolTest is Test {
         pool.stake(amountStakedUserA);
         vm.stopPrank();
 
+        // rewardPerTokenStored updated correctly
         assertEq(pool.rewardPerTokenStored(), pool.rewardPerToken());
 
         // Skip forward 4 days
@@ -136,34 +145,37 @@ contract ERC20StakingPoolTest is Test {
         pool.stake(amountStakedUserB);
         vm.stopPrank();
 
+        // User balances reflect amounts staked
         assertEq(pool.balanceOfStaker(userA), amountStakedUserA);
         assertEq(pool.balanceOfStaker(userB), amountStakedUserB);
 
+        // totalStakedTokens reflects amounts staked by users
         assertEq(
             pool.totalStakedTokens(),
             amountStakedUserA + amountStakedUserB
         );
 
+        // rewardPerTokenStored updated correctly
         assertEq(pool.rewardPerTokenStored(), pool.rewardPerToken());
 
+        // User earnings properly updated
         assertEq(userEarned(userA), pool.earned(userA));
         assertEq(userEarned(userB), pool.earned(userB));
 
+        // stakeToken pool balance increases by total amounts staked
         assertEq(
-            stdMath.delta(
-                stakeToken.balanceOf(address(pool)),
-                poolBalanceBefore
-            ),
+            stakeToken.balanceOf(address(pool)) - poolBalanceBefore,
             amountStakedUserA + amountStakedUserB
         );
 
+        // user stakeToken balances reduced by amount staked
         assertEq(
-            stdMath.delta(stakeToken.balanceOf(userA), amountStakedUserA),
+            amountStakedUserA - stakeToken.balanceOf(userA),
             amountStakedUserA
         );
 
         assertEq(
-            stdMath.delta(stakeToken.balanceOf(userB), amountStakedUserB),
+            amountStakedUserB - stakeToken.balanceOf(userB),
             amountStakedUserB
         );
     }
@@ -173,6 +185,7 @@ contract ERC20StakingPoolTest is Test {
         fundAndStartNewRewardPeriod(REWARD_AMOUNT);
 
         vm.startPrank(userA);
+        // Cannot stake 0 tokens, expect revert
         vm.expectRevert(ERC20StakingPool.Error_ZeroAmount.selector);
         pool.stake(0);
         vm.stopPrank();
@@ -191,12 +204,18 @@ contract ERC20StakingPoolTest is Test {
         pool.stake(amountStakedUserA);
         vm.stopPrank();
 
+        // userA staked entire stakeToken balance, so account balance should be 0
+        assertEq(stakeToken.balanceOf(userA), 0);
+
         // Skip forward 4 days
         vm.warp(block.timestamp + 4 days);
 
         vm.startPrank(userA);
         pool.withdraw(amountStakedUserA);
         vm.stopPrank();
+
+        // After withdraw, userA stakeToken balance should be amount staked
+        assertEq(stakeToken.balanceOf(userA), amountStakedUserA);
     }
 
     function testWithdrawAmountExceedingBalance() public {
@@ -213,6 +232,7 @@ contract ERC20StakingPoolTest is Test {
         vm.warp(block.timestamp + 4 days);
 
         vm.startPrank(userA);
+        // Cannot withdraw an amount greater than the account balance, expect revert
         vm.expectRevert(
             ERC20StakingPool.Error_AmountExceedsStakerBalance.selector
         );
@@ -244,13 +264,43 @@ contract ERC20StakingPoolTest is Test {
         pool.getRewards();
         vm.stopPrank();
 
+        // rewardToken pool balance reduced by rewardsToUserA
         assertEq(
-            stdMath.delta(REWARD_AMOUNT, rewardsToUserA),
+            REWARD_AMOUNT - rewardsToUserA,
             rewardToken.balanceOf(address(pool))
         );
 
+        // stakeToken balance of userA should be 0, since stake tokens not withdrawn
         assertEq(stakeToken.balanceOf(userA), 0);
+
+        // stakeToken balance of pool should also be unchanged
         assertEq(stakeToken.balanceOf(address(pool)), amountStakedUserA);
+    }
+
+    function testGetRewardsZeroRewards() public {
+        uint256 REWARD_AMOUNT = 20e18;
+        fundAndStartNewRewardPeriod(REWARD_AMOUNT);
+
+        uint256 rewardTokenBalanceUserABefore = rewardToken.balanceOf(userA);
+
+        // User A stakes entire balance
+        vm.startPrank(userA);
+        uint256 amountStakedUserA = stakeToken.balanceOf(userA);
+        pool.stake(amountStakedUserA);
+        pool.getRewards();
+        vm.stopPrank();
+
+        // userA hasn't earnt any rewards
+        assertEq(pool.earned(userA), 0);
+
+        // No rewards transferred to userA
+        assertEq(
+            stdMath.delta(
+                rewardTokenBalanceUserABefore,
+                rewardToken.balanceOf(userA)
+            ),
+            0
+        );
     }
 
     /// -----------------------------------------------------------------------
