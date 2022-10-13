@@ -14,7 +14,7 @@ forge test
 - To run a specific test (with stack and setup traces displayed):
 
 ```sh
-forge test --match-contract [CONTRACT_NAME_HERE] --match-test [TEST_NAME_HERE] -vvvvv
+forge test --match-test [TEST_NAME_HERE] -vvvvv
 ```
 
 ## Exercise Description
@@ -28,6 +28,20 @@ Problem specifications are as follows:
 - Users can claim rewards at any time.
 
 ## Testing Coverage
+
+- A new reward period can be started when reward tokens have already been deposited to the pool: `testNewRewardPeriodRewardTokensAlreadyDeposited`
+- Owner cannot start a new reward period with no reward tokens in the pool: `testNewRewardPeriodRewardTokensAlreadyDeposited`
+- Staking works as intended: `testStake`
+- Cannot stake zero stake tokens: `testStakeZeroAmount`
+- Withdrawing works as intended: `testWithdraw`
+- Cannot withdraw more than your stake token balance: `testWithdrawAmountExceedingBalance`
+- Withdrawing rewards only works as intended: `testGetRewards`
+- Cannot withdraw reward tokens if they haven't been earned yet: `testGetRewardsZeroRewards`
+- Can exit the pool by withdrawing stake tokens and rewards earned: `testExitPoolWithStakeAndRewards`
+
+Testing improvements:
+
+- Incorporated fuzz testing for: stake amounts, stake duration, withdrawal amounts.
 
 ## Acknowledgements
 
