@@ -304,6 +304,72 @@ contract ERC20StakingPoolTest is Test {
     }
 
     /// -----------------------------------------------------------------------
+    /// Testing: `exitPoolWithStakeAndRewards()`
+    /// -----------------------------------------------------------------------
+
+    function testExitPoolWithStakeAndRewards() public {
+        uint256 REWARD_AMOUNT = 20e18;
+        fundAndStartNewRewardPeriod(REWARD_AMOUNT);
+
+        uint256 userAInitialRewardTokenBalance = rewardToken.balanceOf(userA);
+
+        uint256 poolInitialRewardTokenBalance = rewardToken.balanceOf(
+            address(pool)
+        );
+        uint256 poolInitialStakeTokenBalance = stakeToken.balanceOf(
+            address(pool)
+        );
+
+        // User A stakes entire balance
+        vm.startPrank(userA);
+        uint256 amountStakedUserA = stakeToken.balanceOf(userA);
+        pool.stake(amountStakedUserA);
+        vm.stopPrank();
+
+        // Skip forward 8 days
+        vm.warp(block.timestamp + 8 days);
+
+        uint256 userARewardsEarned = userEarned(userA);
+        uint256 poolStakedBalanceBeforeWithdrawal = stakeToken.balanceOf(
+            address(pool)
+        );
+
+        // Exit pool with staked tokens and accumulated rewards
+        vm.startPrank(userA);
+        pool.exitPoolWithStakeAndRewards();
+        vm.stopPrank();
+
+        // userA rewardToken balance increases correctly
+        assertEq(
+            userAInitialRewardTokenBalance + pool.earned(userA),
+            userEarned(userA)
+        );
+
+        // userA stake tokens balance: amountStakedUserA -> 0 -> amountStakedUserA, so change should be 0.
+        assertEq(
+            stdMath.delta(amountStakedUserA, stakeToken.balanceOf(userA)),
+            0
+        );
+
+        // Following state variables for userA should now be set to 0.
+        assertEq(pool.rewards(userA), 0);
+        assertEq(pool.balanceOfStaker(userA), 0);
+
+        // Reward token balance of user increased by rewards earned.
+        assertEq(rewardToken.balanceOf(userA), userARewardsEarned);
+
+        assertEq(
+            poolInitialRewardTokenBalance - rewardToken.balanceOf(userA),
+            rewardToken.balanceOf(address(pool))
+        );
+
+        assertEq(
+            poolInitialStakeTokenBalance,
+            poolStakedBalanceBeforeWithdrawal - amountStakedUserA
+        );
+    }
+
+    /// -----------------------------------------------------------------------
     /// Helper functions
     /// -----------------------------------------------------------------------
     function fundAndStartNewRewardPeriod(uint256 REWARD_AMOUNT) public {
