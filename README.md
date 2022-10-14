@@ -27,6 +27,13 @@ Problem specifications are as follows:
 - Users can withdraw at any time.
 - Users can claim rewards at any time.
 
+### Next steps
+
+As I had to refer to existing staking contracts to make progress on this exercise, my future plans for this exercise involve:
+
+- Summarise what I learnt from the studying the reference contracts (in particular, the Playpen `ERC20StakingPool.sol` contract).
+- Wait a sufficiently long time (approximately a month) before attempting this exercise again with no referencing allowed.
+
 ## Testing Coverage
 
 - A new reward period can be started when reward tokens have already been deposited to the pool: `testNewRewardPeriodRewardTokensAlreadyDeposited`
